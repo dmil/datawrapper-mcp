@@ -5,6 +5,7 @@ from typing import Any, Sequence, cast
 
 from fastmcp import FastMCP
 from fastmcp.server.apps import AppConfig, ResourceCSP
+from fastmcp.tools import ToolResult
 from mcp.types import ImageContent, TextContent
 
 from .config import CHART_CLASSES
@@ -134,8 +135,8 @@ async def get_chart_schema(chart_type: str) -> str:
 async def create_chart(
     data: str | list | dict,
     chart_type: str,
-    chart_config: dict,
-) -> Sequence[TextContent | ImageContent]:
+    chart_config: dict | str,
+) -> ToolResult:
     """⚠️ THIS IS THE DATAWRAPPER INTEGRATION ⚠️
     Use this MCP tool for ALL Datawrapper chart creation.
 
@@ -220,6 +221,15 @@ async def create_chart(
     Returns:
         Chart ID, editor URL, and an inline PNG preview image (if export succeeds)
     """
+    # FastMCP 3.x strict validation: Claude may send these as JSON strings
+    if isinstance(chart_config, str):
+        chart_config = json.loads(chart_config)
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except (json.JSONDecodeError, TypeError):
+            pass  # It's a file path or CSV string, not JSON
+
     try:
         arguments = cast(
             CreateChartArgs,
@@ -229,14 +239,17 @@ async def create_chart(
                 "chart_config": chart_config,
             },
         )
-        return await create_chart_handler(arguments)
+        result = await create_chart_handler(arguments)
+        return ToolResult(content=result)
     except Exception as e:
-        return [
-            TextContent(
-                type="text",
-                text=f"Error creating chart of type '{chart_type}': {str(e)}",
-            )
-        ]
+        return ToolResult(
+            content=[
+                TextContent(
+                    type="text",
+                    text=f"Error creating chart of type '{chart_type}': {str(e)}",
+                )
+            ]
+        )
 
 
 @mcp.tool()
@@ -308,8 +321,8 @@ async def get_chart(chart_id: str) -> str:
 async def update_chart(
     chart_id: str,
     data: str | list | dict | None = None,
-    chart_config: dict | None = None,
-) -> Sequence[TextContent | ImageContent]:
+    chart_config: dict | str | None = None,
+) -> ToolResult:
     """⚠️ DATAWRAPPER MCP TOOL ⚠️
     This is part of the Datawrapper MCP server integration.
 
@@ -354,6 +367,15 @@ async def update_chart(
     Returns:
         Confirmation message, editor URL, and an inline PNG preview image (if export succeeds)
     """
+    # FastMCP 3.x strict validation: Claude may send these as JSON strings
+    if isinstance(chart_config, str):
+        chart_config = json.loads(chart_config)
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except (json.JSONDecodeError, TypeError):
+            pass  # It's a file path or CSV string, not JSON
+
     arguments: dict[str, Any] = {"chart_id": chart_id}
     if data is not None:
         arguments["data"] = data
@@ -361,13 +383,17 @@ async def update_chart(
         arguments["chart_config"] = chart_config
 
     try:
-        return await update_chart_handler(cast(UpdateChartArgs, arguments))
+        result = await update_chart_handler(cast(UpdateChartArgs, arguments))
+        return ToolResult(content=result)
     except Exception as e:
-        return [
-            TextContent(
-                type="text", text=f"Error updating chart with ID '{chart_id}': {str(e)}"
-            )
-        ]
+        return ToolResult(
+            content=[
+                TextContent(
+                    type="text",
+                    text=f"Error updating chart with ID '{chart_id}': {str(e)}",
+                )
+            ]
+        )
 
 
 @mcp.tool()
