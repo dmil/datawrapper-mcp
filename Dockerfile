@@ -16,11 +16,14 @@ ENV PATH="/home/deployment/.local/bin:$PATH"
 WORKDIR /app
 
 # Copy application code
+COPY ./pyproject.toml /app/pyproject.toml
 COPY ./datawrapper_mcp /app/datawrapper_mcp
 COPY ./deployment /app/deployment
 
-# Install dependencies
-RUN pip install --no-cache-dir -r /app/deployment/requirements.txt
+# Install dependencies from pyproject.toml
+ARG VERSION=0.1.0
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}
+RUN pip install --no-cache-dir /app
 
 # Create a directory for the .env file
 RUN mkdir -p /app/config
