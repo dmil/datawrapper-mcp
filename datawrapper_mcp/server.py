@@ -4,9 +4,11 @@ import json
 from typing import Any, Sequence, cast
 
 from fastmcp import FastMCP
-from fastmcp.server.apps import AppConfig, ResourceCSP
 from fastmcp.tools import ToolResult
 from mcp.types import ImageContent, TextContent
+from prefab_ui.actions.mcp import CallTool, SendMessage
+from prefab_ui.app import PrefabApp
+from prefab_ui.components import Button, Column, Image, Row, Text
 
 from .config import CHART_CLASSES
 from .handlers import create_chart as create_chart_handler
@@ -25,27 +27,13 @@ from .types import (
     PublishChartArgs,
     UpdateChartArgs,
 )
-from .views import get_chart_view_html
+
+# Maximum base64 PNG size (bytes) to include inline in PrefabUI view.
+# structuredContent has a 25,000 token limit; 200KB base64 ≈ 67K tokens.
+MAX_PREVIEW_BYTES = 200_000
 
 # Initialize the FastMCP server
 mcp = FastMCP("datawrapper-mcp")
-
-# MCP App View configuration
-CHART_VIEW_URI = "ui://datawrapper-mcp/chart-view.html"
-CHART_VIEW_APP = AppConfig(resourceUri=CHART_VIEW_URI)
-
-
-@mcp.resource(
-    CHART_VIEW_URI,
-    app=AppConfig(
-        csp=ResourceCSP(
-            frameDomains=["https://datawrapper.dwcdn.net"],
-        )
-    ),
-)
-def chart_view_resource() -> str:
-    """Interactive chart viewer rendered inline in the conversation."""
-    return get_chart_view_html()
 
 
 @mcp.resource("datawrapper://chart-types")
@@ -131,7 +119,7 @@ async def get_chart_schema(chart_type: str) -> str:
         return f"Error retrieving schema for chart_type '{chart_type}': {str(e)}"
 
 
-@mcp.tool(app=CHART_VIEW_APP)
+@mcp.tool(app=True)
 async def create_chart(
     data: str | list | dict,
     chart_type: str,
@@ -222,8 +210,9 @@ async def create_chart(
         Chart ID, editor URL, and an inline PNG preview image (if export succeeds)
     """
     # FastMCP 3.x strict validation: Claude may send these as JSON strings
-    if isinstance(chart_config, str):
-        chart_config = json.loads(chart_config)
+    parsed_config: dict[str, Any] = (
+        json.loads(chart_config) if isinstance(chart_config, str) else chart_config
+    )
     if isinstance(data, str):
         try:
             data = json.loads(data)
@@ -231,25 +220,63 @@ async def create_chart(
             pass  # It's a file path or CSV string, not JSON
 
     try:
-        arguments = cast(
-            CreateChartArgs,
-            {
-                "data": data,
-                "chart_type": chart_type,
-                "chart_config": chart_config,
-            },
-        )
+        arguments: CreateChartArgs = {
+            "data": data,
+            "chart_type": chart_type,
+            "chart_config": parsed_config,
+        }
         result = await create_chart_handler(arguments)
-        return ToolResult(content=result)
     except Exception as e:
         return ToolResult(
-            content=[
-                TextContent(
-                    type="text",
-                    text=f"Error creating chart of type '{chart_type}': {str(e)}",
-                )
-            ]
+            content=f"Error creating chart of type '{chart_type}': {e}",
         )
+
+    # Extract chart metadata and PNG from handler result
+    text_item = next((r for r in result if isinstance(r, TextContent)), None)
+    if text_item is None:
+        return ToolResult(content="Chart creation failed: no response from handler")
+    image_item = next((r for r in result if isinstance(r, ImageContent)), None)
+    chart_data = json.loads(text_item.text)
+
+    chart_id = chart_data["chart_id"]
+    edit_url = chart_data["edit_url"]
+    title = chart_data.get("title", "")
+
+    # Build PrefabUI component tree
+    with Column(gap=4, css_class="p-4") as view:
+        if image_item and len(image_item.data) <= MAX_PREVIEW_BYTES:
+            Image(
+                src=f"data:{image_item.mimeType};base64,{image_item.data}",
+                alt=title,
+                css_class="w-full rounded",
+            )
+        else:
+            Text("Chart created (preview too large or unavailable)")
+
+        with Row(gap=2, align="center"):
+            Button(
+                "Publish",
+                on_click=CallTool(
+                    "publish_chart",
+                    arguments={"chart_id": chart_id},
+                ),
+            )
+            Button(
+                "Open in editor",
+                on_click=SendMessage(f"Open {edit_url} in my browser"),
+            )
+            Text(
+                chart_id,
+                css_class="ml-auto text-xs text-muted-foreground font-mono",
+            )
+
+    return ToolResult(
+        content=f"Chart '{title}' created (ID: {chart_id}). Edit: {edit_url}",
+        structured_content=PrefabApp(
+            view=view,
+            state={"chart_id": chart_id, "edit_url": edit_url},
+        ),
+    )
 
 
 @mcp.tool()
@@ -317,7 +344,7 @@ async def get_chart(chart_id: str) -> str:
         return f"Error retrieving chart with ID '{chart_id}': {str(e)}"
 
 
-@mcp.tool(app=CHART_VIEW_APP)
+@mcp.tool(app=True)
 async def update_chart(
     chart_id: str,
     data: str | list | dict | None = None,
@@ -368,8 +395,9 @@ async def update_chart(
         Confirmation message, editor URL, and an inline PNG preview image (if export succeeds)
     """
     # FastMCP 3.x strict validation: Claude may send these as JSON strings
-    if isinstance(chart_config, str):
-        chart_config = json.loads(chart_config)
+    parsed_config: dict[str, Any] | None = (
+        json.loads(chart_config) if isinstance(chart_config, str) else chart_config
+    )
     if isinstance(data, str):
         try:
             data = json.loads(data)
@@ -379,21 +407,61 @@ async def update_chart(
     arguments: dict[str, Any] = {"chart_id": chart_id}
     if data is not None:
         arguments["data"] = data
-    if chart_config is not None:
-        arguments["chart_config"] = chart_config
+    if parsed_config is not None:
+        arguments["chart_config"] = parsed_config
 
     try:
         result = await update_chart_handler(cast(UpdateChartArgs, arguments))
-        return ToolResult(content=result)
     except Exception as e:
         return ToolResult(
-            content=[
-                TextContent(
-                    type="text",
-                    text=f"Error updating chart with ID '{chart_id}': {str(e)}",
-                )
-            ]
+            content=f"Error updating chart with ID '{chart_id}': {e}",
         )
+
+    # Extract chart metadata and PNG from handler result
+    text_item = next((r for r in result if isinstance(r, TextContent)), None)
+    if text_item is None:
+        return ToolResult(content="Chart update failed: no response from handler")
+    image_item = next((r for r in result if isinstance(r, ImageContent)), None)
+    chart_data = json.loads(text_item.text)
+
+    edit_url = chart_data.get("edit_url", "")
+    title = chart_data.get("title", "")
+
+    # Build PrefabUI component tree
+    with Column(gap=4, css_class="p-4") as view:
+        if image_item and len(image_item.data) <= MAX_PREVIEW_BYTES:
+            Image(
+                src=f"data:{image_item.mimeType};base64,{image_item.data}",
+                alt=title,
+                css_class="w-full rounded",
+            )
+        else:
+            Text("Chart updated (preview too large or unavailable)")
+
+        with Row(gap=2, align="center"):
+            Button(
+                "Re-publish",
+                on_click=CallTool(
+                    "publish_chart",
+                    arguments={"chart_id": chart_id},
+                ),
+            )
+            Button(
+                "Open in editor",
+                on_click=SendMessage(f"Open {edit_url} in my browser"),
+            )
+            Text(
+                chart_id,
+                css_class="ml-auto text-xs text-muted-foreground font-mono",
+            )
+
+    return ToolResult(
+        content=f"Chart '{title}' updated (ID: {chart_id}). Edit: {edit_url}",
+        structured_content=PrefabApp(
+            view=view,
+            state={"chart_id": chart_id, "edit_url": edit_url},
+        ),
+    )
 
 
 @mcp.tool()

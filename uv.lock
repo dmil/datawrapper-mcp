@@ -562,8 +562,9 @@ source = { editable = "." }
 dependencies = [
     { name = "datawrapper" },
     { name = "exceptiongroup", marker = "python_full_version < '3.11'" },
-    { name = "fastmcp" },
+    { name = "fastmcp", extra = ["apps"] },
     { name = "pandas" },
+    { name = "prefab-ui" },
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
 
@@ -591,11 +592,12 @@ test = [
 requires-dist = [
     { name = "datawrapper", specifier = ">=2.0.14" },
     { name = "exceptiongroup", marker = "python_full_version < '3.11'" },
-    { name = "fastmcp", specifier = ">=3.0.0" },
+    { name = "fastmcp", extras = ["apps"], specifier = "==3.1.1" },
     { name = "mypy", marker = "extra == 'mypy'" },
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "pandas-stubs", marker = "extra == 'mypy'" },
     { name = "pre-commit", marker = "extra == 'dev'" },
+    { name = "prefab-ui", specifier = "==0.8.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=0.21.0" },
     { name = "pytest-cov", marker = "extra == 'test'" },
@@ -727,6 +729,11 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/25/83/c95d3bf717698a693eccb43e137a32939d2549876e884e246028bff6ecce/fastmcp-3.1.1.tar.gz", hash = "sha256:db184b5391a31199323766a3abf3a8bfbb8010479f77eca84c0e554f18655c48", size = 17347644, upload-time = "2026-03-14T19:12:20.235Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/70/ea/570122de7e24f72138d006f799768e14cc1ccf7fcb22b7750b2bd276c711/fastmcp-3.1.1-py3-none-any.whl", hash = "sha256:8132ba069d89f14566b3266919d6d72e2ec23dd45d8944622dca407e9beda7eb", size = 633754, upload-time = "2026-03-14T19:12:22.736Z" },
+]
+
+[package.optional-dependencies]
+apps = [
+    { name = "prefab-ui" },
 ]
 
 [[package]]
@@ -1616,6 +1623,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a6/49/7845c2d7bf6474efd8e27905b51b11e6ce411708c91e829b93f324de9929/pre_commit-4.4.0.tar.gz", hash = "sha256:f0233ebab440e9f17cabbb558706eb173d19ace965c68cdce2c081042b4fab15", size = 197501, upload-time = "2025-11-08T21:12:11.607Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/27/11/574fe7d13acf30bfd0a8dd7fa1647040f2b8064f13f43e8c963b1e65093b/pre_commit-4.4.0-py2.py3-none-any.whl", hash = "sha256:b35ea52957cbf83dcc5d8ee636cbead8624e3a15fbfa61a370e42158ac8a5813", size = 226049, upload-time = "2025-11-08T21:12:10.228Z" },
+]
+
+[[package]]
+name = "prefab-ui"
+version = "0.8.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cyclopts" },
+    { name = "pydantic" },
+    { name = "rich" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9e/b6/36166ce41d301e70f99172c77ad0ab818e1adb48c31cd5872aa9ba143f8a/prefab_ui-0.8.0.tar.gz", hash = "sha256:355f7c9d2ac30b5871833b505557b8747e1e9b847cfe983dc3f43eacc5e46cb3", size = 2746948, upload-time = "2026-02-25T21:48:00.392Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/54/24/fd8b0463cdaf99c3cc01b6589fa1b9773c84de0a49613b3b4c9ce1a37c71/prefab_ui-0.8.0-py3-none-any.whl", hash = "sha256:0c285eb3828a0e8c525b271741902bbe16d3aeef19fe9bcdd3b3a7df8950a29f", size = 803853, upload-time = "2026-02-25T21:47:57.756Z" },
 ]
 
 [[package]]
