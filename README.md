@@ -1,4 +1,4 @@
-A Model Context Protocol (MCP) server and app that enables AI assistants to create Datawrapper charts. Built on the [datawrapper Python library](https://github.com/chekos/datawrapper).
+A Model Context Protocol (MCP) server and app or creating Datawrapper charts using AI assistants. Built on the [datawrapper Python library](https://github.com/chekos/datawrapper).
 
 <!-- mcp-name: io.github.palewire/datawrapper-mcp -->
 
