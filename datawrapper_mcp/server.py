@@ -8,7 +8,13 @@ from fastmcp.server.apps import AppConfig, ResourceCSP
 from mcp.types import ImageContent, TextContent
 
 from .config import CHART_CLASSES
-from .views import get_chart_view_html
+from .handlers import create_chart as create_chart_handler
+from .handlers import delete_chart as delete_chart_handler
+from .handlers import export_chart_png as export_chart_png_handler
+from .handlers import get_chart_info as get_chart_info_handler
+from .handlers import get_chart_schema as get_chart_schema_handler
+from .handlers import publish_chart as publish_chart_handler
+from .handlers import update_chart as update_chart_handler
 from .types import (
     CreateChartArgs,
     DeleteChartArgs,
@@ -18,29 +24,21 @@ from .types import (
     PublishChartArgs,
     UpdateChartArgs,
 )
-from .handlers import (
-    create_chart as create_chart_handler,
-    delete_chart as delete_chart_handler,
-    export_chart_png as export_chart_png_handler,
-    get_chart_info as get_chart_info_handler,
-    get_chart_schema as get_chart_schema_handler,
-    publish_chart as publish_chart_handler,
-    update_chart as update_chart_handler,
-)
+from .views import get_chart_view_html
 
 # Initialize the FastMCP server
 mcp = FastMCP("datawrapper-mcp")
 
 # MCP App View configuration
 CHART_VIEW_URI = "ui://datawrapper-mcp/chart-view.html"
-CHART_VIEW_APP = AppConfig(resource_uri=CHART_VIEW_URI)
+CHART_VIEW_APP = AppConfig(resourceUri=CHART_VIEW_URI)
 
 
 @mcp.resource(
     CHART_VIEW_URI,
     app=AppConfig(
         csp=ResourceCSP(
-            frame_domains=["https://datawrapper.dwcdn.net"],
+            frameDomains=["https://datawrapper.dwcdn.net"],
         )
     ),
 )
@@ -62,7 +60,7 @@ async def chart_types_resource() -> str:
     return json.dumps(chart_info, indent=2)
 
 
-@mcp.tool()
+@mcp.tool(app=AppConfig(resource_uri=CHART_VIEW_URI))
 async def list_chart_types() -> Sequence[TextContent | ImageContent]:
     """⚠️ DATAWRAPPER MCP TOOL ⚠️
     This is part of the Datawrapper MCP server integration.
