@@ -167,7 +167,8 @@ class TestTimingMiddleware:
             with pytest.raises(RuntimeError, match="fail"):
                 await mw.on_call_tool(_make_context("failing_tool"), call_next)
 
-        # Timing was NOT logged because the exception propagated before the
-        # log line. This is expected — TimingMiddleware sits inside
-        # ErrorHandlingMiddleware, which catches the exception. Verify the
-        # middleware does not swallow the error on its own.
+        # Timing is logged even when the handler raises because the log call
+        # lives in a finally block. Verify that the timing log is present and
+        # that the middleware does not swallow the error on its own.
+        assert "failing_tool" in caplog.text
+        assert "completed in" in caplog.text
