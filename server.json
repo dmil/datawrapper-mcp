@@ -26,23 +26,6 @@
           "isSecret": true
         }
       ]
-    },
-    {
-      "registryType": "docker",
-      "registryBaseUrl": "https://hub.docker.com",
-      "identifier": "palewire/datawrapper-mcp",
-      "version": "latest",
-      "transport": {
-        "type": "streamable-http"
-      },
-      "environmentVariables": [
-        {
-          "name": "DATAWRAPPER_ACCESS_TOKEN",
-          "description": "Datawrapper API Access Token",
-          "isRequired": true,
-          "isSecret": true
-        }
-      ]
     }
   ]
 }
