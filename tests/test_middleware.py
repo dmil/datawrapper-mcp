@@ -165,10 +165,16 @@ class TestTimingMiddleware:
         assert "completed in" in caplog.text
 
     @pytest.mark.asyncio
-    async def test_propagates_exception(self):
-        """TimingMiddleware does not catch errors — ErrorHandlingMiddleware does."""
+    async def test_logs_even_when_handler_raises(self, caplog):
         mw = TimingMiddleware()
         call_next = AsyncMock(side_effect=RuntimeError("fail"))
 
-        with pytest.raises(RuntimeError, match="fail"):
-            await mw.on_call_tool(_make_context("failing_tool"), call_next)
+        with caplog.at_level(logging.INFO, logger="datawrapper_mcp"):
+            with pytest.raises(RuntimeError, match="fail"):
+                await mw.on_call_tool(_make_context("failing_tool"), call_next)
+
+        # Timing is logged even when the handler raises because the log call
+        # lives in a finally block. Verify that the timing log is present and
+        # that the middleware does not swallow the error on its own.
+        assert "failing_tool" in caplog.text
+        assert "completed in" in caplog.text
