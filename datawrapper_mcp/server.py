@@ -60,7 +60,7 @@ async def chart_types_resource() -> str:
     return json.dumps(chart_info, indent=2)
 
 
-@mcp.tool(app=AppConfig(resource_uri=CHART_VIEW_URI))
+@mcp.tool()
 async def list_chart_types() -> Sequence[TextContent | ImageContent]:
     """⚠️ DATAWRAPPER MCP TOOL ⚠️
     This is part of the Datawrapper MCP server integration.
