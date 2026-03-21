@@ -19,6 +19,6 @@ def try_export_preview(chart: BaseChart) -> ImageContent | None:
             data=base64_data,
             mimeType="image/png",
         )
-    except Exception as e:
-        logger.warning(f"Failed to auto-export PNG preview: {e}")
+    except Exception:
+        logger.warning("Failed to auto-export PNG preview", exc_info=True)
         return None
