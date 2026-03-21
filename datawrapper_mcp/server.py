@@ -224,24 +224,33 @@ async def create_chart(
             "chart_type": chart_type,
             "chart_config": parsed_config,
         }
-        result = await create_chart_handler(arguments)
+        chart_data, images = await create_chart_handler(arguments)
     except Exception as e:
         return ToolResult(
-            content=f"Error creating chart of type '{chart_type}': {e}",
+            content=[
+                TextContent(
+                    type="text",
+                    text=f"Error creating chart of type '{chart_type}': {e}",
+                )
+            ],
         )
-
-    # Extract chart metadata and PNG from handler result
-    text_item = next((r for r in result if isinstance(r, TextContent)), None)
-    if text_item is None:
-        return ToolResult(content="Chart creation failed: no response from handler")
-    image_item = next((r for r in result if isinstance(r, ImageContent)), None)
-    chart_data = json.loads(text_item.text)
 
     chart_id = chart_data["chart_id"]
     edit_url = chart_data["edit_url"]
     title = chart_data.get("title", "")
+    image_item = images[0] if images else None
 
-    # Build PrefabUI component tree
+    # Build non-Apps fallback content (TextContent + optional ImageContent)
+    fallback: list[TextContent | ImageContent] = [
+        TextContent(
+            type="text",
+            text=f"Chart '{title}' created (ID: {chart_id}). Edit: {edit_url}",
+        )
+    ]
+    if image_item:
+        fallback.append(image_item)
+
+    # Build PrefabUI component tree for Apps hosts
     with Column(gap=4, css_class="p-4") as view:  # type: ignore[call-arg]
         if image_item and len(image_item.data) <= MAX_PREVIEW_BYTES:
             Image(
@@ -253,7 +262,7 @@ async def create_chart(
             Text("Chart created (preview too large or unavailable)")
 
     return ToolResult(
-        content=f"Chart '{title}' created (ID: {chart_id}). Edit: {edit_url}",
+        content=fallback,
         structured_content=PrefabApp(
             view=view,
             state={"chart_id": chart_id, "edit_url": edit_url},
@@ -393,23 +402,34 @@ async def update_chart(
         arguments["chart_config"] = parsed_config
 
     try:
-        result = await update_chart_handler(cast(UpdateChartArgs, arguments))
+        chart_data, images = await update_chart_handler(
+            cast(UpdateChartArgs, arguments)
+        )
     except Exception as e:
         return ToolResult(
-            content=f"Error updating chart with ID '{chart_id}': {e}",
+            content=[
+                TextContent(
+                    type="text",
+                    text=f"Error updating chart with ID '{chart_id}': {e}",
+                )
+            ],
         )
-
-    # Extract chart metadata and PNG from handler result
-    text_item = next((r for r in result if isinstance(r, TextContent)), None)
-    if text_item is None:
-        return ToolResult(content="Chart update failed: no response from handler")
-    image_item = next((r for r in result if isinstance(r, ImageContent)), None)
-    chart_data = json.loads(text_item.text)
 
     edit_url = chart_data.get("edit_url", "")
     title = chart_data.get("title", "")
+    image_item = images[0] if images else None
 
-    # Build PrefabUI component tree
+    # Build non-Apps fallback content (TextContent + optional ImageContent)
+    fallback: list[TextContent | ImageContent] = [
+        TextContent(
+            type="text",
+            text=f"Chart '{title}' updated (ID: {chart_id}). Edit: {edit_url}",
+        )
+    ]
+    if image_item:
+        fallback.append(image_item)
+
+    # Build PrefabUI component tree for Apps hosts
     with Column(gap=4, css_class="p-4") as view:  # type: ignore[call-arg]
         if image_item and len(image_item.data) <= MAX_PREVIEW_BYTES:
             Image(
@@ -421,7 +441,7 @@ async def update_chart(
             Text("Chart updated (preview too large or unavailable)")
 
     return ToolResult(
-        content=f"Chart '{title}' updated (ID: {chart_id}). Edit: {edit_url}",
+        content=fallback,
         structured_content=PrefabApp(
             view=view,
             state={"chart_id": chart_id, "edit_url": edit_url},
