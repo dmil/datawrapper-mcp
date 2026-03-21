@@ -100,7 +100,7 @@ def mock_create_flow(mock_chart_instance):
             return_value=mock_chart_instance,
         ),
         patch(
-            "datawrapper_mcp.handlers.preview.try_export_preview",
+            "datawrapper_mcp.handlers.create.try_export_preview",
             return_value=None,
         ),
     ):
