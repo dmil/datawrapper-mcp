@@ -115,11 +115,11 @@ jobs:
         name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - id: inspector
         name: Run MCP Inspector
-        run: npx --yes @modelcontextprotocol/inspector --server "uv run datawrapper-mcp" --check tools
+        run: npx --yes @modelcontextprotocol/inspector --cli list tools -- uv run datawrapper-mcp
 
   build:
     name: Build release candidate
