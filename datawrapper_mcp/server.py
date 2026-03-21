@@ -10,6 +10,11 @@ from prefab_ui.app import PrefabApp
 from prefab_ui.components import Column, Image, Text
 
 from .config import CHART_CLASSES
+from .middleware import (
+    ErrorHandlingMiddleware,
+    RateLimitingMiddleware,
+    TimingMiddleware,
+)
 from .handlers import create_chart as create_chart_handler
 from .handlers import delete_chart as delete_chart_handler
 from .handlers import export_chart_png as export_chart_png_handler
@@ -31,8 +36,16 @@ from .types import (
 # structuredContent has a 25,000 token limit; 200KB base64 ≈ 67K tokens.
 MAX_PREVIEW_BYTES = 200_000
 
-# Initialize the FastMCP server
-mcp = FastMCP("datawrapper-mcp")
+# Initialize the FastMCP server with production middleware.
+# Order matters: ErrorHandlingMiddleware is outermost (last in list, first to catch).
+mcp = FastMCP(
+    "datawrapper-mcp",
+    middleware=[
+        TimingMiddleware(),
+        RateLimitingMiddleware(max_calls=60, period=60),
+        ErrorHandlingMiddleware(),
+    ],
+)
 
 
 @mcp.resource("datawrapper://chart-types")
@@ -124,12 +137,9 @@ async def get_chart_schema(chart_type: str) -> str:
     Returns:
         JSON schema for the chart type
     """
-    try:
-        arguments = cast(GetChartSchemaArgs, {"chart_type": chart_type})
-        result = await get_chart_schema_handler(arguments)
-        return result[0].text
-    except Exception as e:
-        return f"Error retrieving schema for chart_type '{chart_type}': {str(e)}"
+    arguments = cast(GetChartSchemaArgs, {"chart_type": chart_type})
+    result = await get_chart_schema_handler(arguments)
+    return result[0].text
 
 
 @mcp.tool(
@@ -240,22 +250,12 @@ async def create_chart(
         except (json.JSONDecodeError, TypeError):
             pass  # It's a file path or CSV string, not JSON
 
-    try:
-        arguments: CreateChartArgs = {
-            "data": data,
-            "chart_type": chart_type,
-            "chart_config": parsed_config,
-        }
-        chart_data, images = await create_chart_handler(arguments)
-    except Exception as e:
-        return ToolResult(
-            content=[
-                TextContent(
-                    type="text",
-                    text=f"Error creating chart of type '{chart_type}': {e}",
-                )
-            ],
-        )
+    arguments: CreateChartArgs = {
+        "data": data,
+        "chart_type": chart_type,
+        "chart_config": parsed_config,
+    }
+    chart_data, images = await create_chart_handler(arguments)
 
     chart_id = chart_data["chart_id"]
     edit_url = chart_data["edit_url"]
@@ -317,18 +317,8 @@ async def publish_chart(chart_id: str) -> ToolResult:
     Returns:
         Public URL plus an inline preview when available
     """
-    try:
-        arguments = cast(PublishChartArgs, {"chart_id": chart_id})
-        chart_data, images = await publish_chart_handler(arguments)
-    except Exception as e:
-        return ToolResult(
-            content=[
-                TextContent(
-                    type="text",
-                    text=f"Error publishing chart with ID '{chart_id}': {e}",
-                )
-            ]
-        )
+    arguments = cast(PublishChartArgs, {"chart_id": chart_id})
+    chart_data, images = await publish_chart_handler(arguments)
 
     public_url = chart_data.get("public_url", "")
     chart_id = chart_data.get("chart_id", chart_id)
@@ -411,12 +401,9 @@ async def get_chart(chart_id: str) -> str:
     Returns:
         Chart information including complete configuration and URLs
     """
-    try:
-        arguments = cast(GetChartArgs, {"chart_id": chart_id})
-        result = await get_chart_info_handler(arguments)
-        return result[0].text
-    except Exception as e:
-        return f"Error retrieving chart with ID '{chart_id}': {str(e)}"
+    arguments = cast(GetChartArgs, {"chart_id": chart_id})
+    result = await get_chart_info_handler(arguments)
+    return result[0].text
 
 
 @mcp.tool(
@@ -493,19 +480,7 @@ async def update_chart(
     if parsed_config is not None:
         arguments["chart_config"] = parsed_config
 
-    try:
-        chart_data, images = await update_chart_handler(
-            cast(UpdateChartArgs, arguments)
-        )
-    except Exception as e:
-        return ToolResult(
-            content=[
-                TextContent(
-                    type="text",
-                    text=f"Error updating chart with ID '{chart_id}': {e}",
-                )
-            ],
-        )
+    chart_data, images = await update_chart_handler(cast(UpdateChartArgs, arguments))
 
     edit_url = chart_data.get("edit_url", "")
     title = chart_data.get("title", "")
@@ -563,13 +538,8 @@ async def delete_chart(chart_id: str) -> str:
     Returns:
         Confirmation message
     """
-    try:
-        result = await delete_chart_handler(
-            cast(DeleteChartArgs, {"chart_id": chart_id})
-        )
-        return result[0].text
-    except Exception as e:
-        return f"Error deleting chart with ID '{chart_id}': {str(e)}"
+    result = await delete_chart_handler(cast(DeleteChartArgs, {"chart_id": chart_id}))
+    return result[0].text
 
 
 @mcp.tool(
@@ -614,24 +584,21 @@ async def export_chart_png(
     Returns:
         PNG image content
     """
-    try:
-        args: dict[str, Any] = {
-            "chart_id": chart_id,
-            "plain": plain,
-            "zoom": zoom,
-            "transparent": transparent,
-            "border_width": border_width,
-        }
-        if width is not None:
-            args["width"] = width
-        if height is not None:
-            args["height"] = height
-        if border_color is not None:
-            args["border_color"] = border_color
+    args: dict[str, Any] = {
+        "chart_id": chart_id,
+        "plain": plain,
+        "zoom": zoom,
+        "transparent": transparent,
+        "border_width": border_width,
+    }
+    if width is not None:
+        args["width"] = width
+    if height is not None:
+        args["height"] = height
+    if border_color is not None:
+        args["border_color"] = border_color
 
-        return await export_chart_png_handler(cast(ExportChartPngArgs, args))
-    except Exception as e:
-        return [TextContent(type="text", text=f"Error: {str(e)}")]
+    return await export_chart_png_handler(cast(ExportChartPngArgs, args))
 
 
 def main():
