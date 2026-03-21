@@ -65,7 +65,7 @@ class TestGetChartSchema:
     async def test_invalid_chart_type_raises_error(self, client):
         from fastmcp.exceptions import ToolError
 
-        with pytest.raises(ToolError):
+        with pytest.raises(ToolError, match="nonexistent"):
             await client.call_tool(
                 "get_chart_schema",
                 {"chart_type": "nonexistent"},
