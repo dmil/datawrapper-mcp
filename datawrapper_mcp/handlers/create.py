@@ -3,14 +3,15 @@
 import json
 from typing import Any
 
-from mcp.types import TextContent
+from mcp.types import ImageContent, TextContent
 
 from ..config import CHART_CLASSES
 from ..types import CreateChartArgs
 from ..utils import json_to_dataframe
+from .preview import try_export_preview
 
 
-async def create_chart(arguments: CreateChartArgs) -> list[TextContent]:
+async def create_chart(arguments: CreateChartArgs) -> list[TextContent | ImageContent]:
     """Create a chart with full Pydantic model configuration."""
     chart_type = arguments["chart_type"]
 
@@ -47,4 +48,12 @@ async def create_chart(arguments: CreateChartArgs) -> list[TextContent]:
         ),
     }
 
-    return [TextContent(type="text", text=json.dumps(result, indent=2))]
+    response: list[TextContent | ImageContent] = [
+        TextContent(type="text", text=json.dumps(result, indent=2))
+    ]
+
+    preview = try_export_preview(chart)
+    if preview:
+        response.append(preview)
+
+    return response
