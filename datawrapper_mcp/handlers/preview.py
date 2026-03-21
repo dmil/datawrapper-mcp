@@ -1,0 +1,24 @@
+"""Shared preview helper for inline chart previews."""
+
+import base64
+import logging
+
+from datawrapper.charts.base import BaseChart
+from mcp.types import ImageContent
+
+logger = logging.getLogger(__name__)
+
+
+def try_export_preview(chart: BaseChart) -> ImageContent | None:
+    """Export a PNG preview of a chart, returning None on failure."""
+    try:
+        png_bytes = chart.export_png()
+        base64_data = base64.b64encode(png_bytes).decode("utf-8")
+        return ImageContent(
+            type="image",
+            data=base64_data,
+            mimeType="image/png",
+        )
+    except Exception as e:
+        logger.warning(f"Failed to auto-export PNG preview: {e}")
+        return None

@@ -18,189 +18,84 @@ Key design decisions:
 
 | File                                 | Change                                                                                                                         |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `datawrapper_mcp/handlers/create.py` | Export PNG after `chart.create()`, append `ImageContent` to response                                                           |
-| `datawrapper_mcp/handlers/update.py` | Export PNG after `chart.update()`, append `ImageContent` to response                                                           |
+| `datawrapper_mcp/handlers/preview.py`| New helper: `try_export_preview(chart)` returns an `ImageContent` or `None`                                                    |
+| `datawrapper_mcp/handlers/create.py` | Import and call `try_export_preview` after `chart.create()`, append result to response                                         |
+| `datawrapper_mcp/handlers/update.py` | Import and call `try_export_preview` after `chart.update()`, append result to response                                         |
 | `datawrapper_mcp/server.py`          | Change `create_chart` and `update_chart` wrappers to pass through full response (text + image) instead of extracting only text |
 
 ## Step-by-step implementation
 
-### Step 1: Update `datawrapper_mcp/handlers/create.py`
+### Step 1: Create `datawrapper_mcp/handlers/preview.py`
 
-The handler's return type changes from `list[TextContent]` to `list[Union[TextContent, ImageContent]]`. After calling `chart.create()`, it exports a PNG and appends it to the response.
-
-Replace the entire file with:
+A shared helper that attempts a PNG export and returns an `ImageContent` on success or `None` on failure. Both `create.py` and `update.py` will call this instead of duplicating the export logic.
 
 ```python
-"""Handler for creating Datawrapper charts."""
+"""Shared preview helper for inline chart previews."""
 
 import base64
-import json
 import logging
-from typing import Any, Union
 
-from mcp.types import ImageContent, TextContent
-
-from ..config import CHART_CLASSES
-from ..types import CreateChartArgs
-from ..utils import json_to_dataframe
+from datawrapper.charts.base import BaseChart
+from mcp.types import ImageContent
 
 logger = logging.getLogger(__name__)
 
 
-async def create_chart(
-    arguments: CreateChartArgs,
-) -> list[Union[TextContent, ImageContent]]:
-    """Create a chart with full Pydantic model configuration."""
-    chart_type = arguments["chart_type"]
-
-    # Convert data to DataFrame
-    df = json_to_dataframe(arguments["data"])
-
-    # Get chart class and validate config
-    chart_class: type[Any] = CHART_CLASSES[chart_type]
-
-    # Validate and create chart using Pydantic model
+def try_export_preview(chart: BaseChart) -> ImageContent | None:
+    """Export a PNG preview of a chart, returning None on failure."""
     try:
-        chart = chart_class.model_validate(arguments["chart_config"])
-    except Exception as e:
-        raise ValueError(
-            f"Invalid chart configuration: {str(e)}\n\n"
-            f"Use get_chart_schema with chart_type '{chart_type}' "
-            f"to see the valid schema."
-        )
-
-    # Set data on chart instance
-    chart.data = df
-
-    # Create chart using Pydantic instance method
-    chart.create()
-
-    result = {
-        "chart_id": chart.chart_id,
-        "chart_type": chart_type,
-        "title": chart.title,
-        "edit_url": chart.get_editor_url(),
-        "message": (
-            f"Chart created successfully! Edit it at: {chart.get_editor_url()}\n"
-            f"Use publish_chart with chart_id '{chart.chart_id}' to make it public."
-        ),
-    }
-
-    response: list[Union[TextContent, ImageContent]] = [
-        TextContent(type="text", text=json.dumps(result, indent=2))
-    ]
-
-    # Auto-export a PNG preview so the chart is visible inline
-    try:
-        png_bytes = chart.export_png(zoom=2)
+        png_bytes = chart.export_png()
         base64_data = base64.b64encode(png_bytes).decode("utf-8")
-        response.append(
-            ImageContent(
-                type="image",
-                data=base64_data,
-                mimeType="image/png",
-            )
+        return ImageContent(
+            type="image",
+            data=base64_data,
+            mimeType="image/png",
         )
     except Exception as e:
         logger.warning(f"Failed to auto-export PNG preview: {e}")
-
-    return response
+        return None
 ```
 
-### Step 2: Update `datawrapper_mcp/handlers/update.py`
+### Step 2: Update `datawrapper_mcp/handlers/create.py`
 
-Same pattern — change the return type and append a PNG export after `chart.update()`.
+The handler's return type changes from `list[TextContent]` to `list[TextContent | ImageContent]`. After calling `chart.create()`, it calls the shared helper and appends the result if present.
 
-Replace the entire file with:
+Changes from the current file:
+
+1. Add import: `from .preview import try_export_preview`
+2. Add import: `from mcp.types import ImageContent`
+3. Change return type to `list[TextContent | ImageContent]`
+4. After building the text response, call `try_export_preview(chart)` and append the result if not `None`
 
 ```python
-"""Handler for updating Datawrapper charts."""
-
-import base64
-import json
-import logging
-from typing import Union
-
-from mcp.types import ImageContent, TextContent
-from datawrapper import get_chart
-
-from ..types import UpdateChartArgs
-from ..utils import json_to_dataframe
-
-logger = logging.getLogger(__name__)
-
-
-async def update_chart(
-    arguments: UpdateChartArgs,
-) -> list[Union[TextContent, ImageContent]]:
-    """Update an existing chart's data or configuration."""
-    chart_id = arguments["chart_id"]
-
-    # Get chart using factory function - returns correct Pydantic class instance
-    chart = get_chart(chart_id)
-
-    # Update data if provided
-    if "data" in arguments:
-        df = json_to_dataframe(arguments["data"])
-        chart.data = df
-
-    # Update config if provided
-    if "chart_config" in arguments:
-        # Directly set attributes on the chart instance
-        # Pydantic will validate each assignment automatically due to validate_assignment=True
-        try:
-            # Build a mapping of aliases to field names
-            alias_to_field = {}
-            for field_name, field_info in chart.model_fields.items():
-                # Add the field name itself
-                alias_to_field[field_name] = field_name
-                # Add any aliases
-                if field_info.alias:
-                    alias_to_field[field_info.alias] = field_name
-
-            for key, value in arguments["chart_config"].items():
-                # Convert alias to field name if needed
-                field_name = alias_to_field.get(key, key)
-                setattr(chart, field_name, value)
-
-        except Exception as e:
-            raise ValueError(
-                f"Invalid chart configuration: {str(e)}\n\n"
-                f"Use get_chart_schema to see the valid schema for this chart type. "
-                f"Only high-level Pydantic fields are accepted."
-            )
-
-    # Update using Pydantic instance method
-    chart.update()
-
-    result = {
-        "chart_id": chart.chart_id,
-        "message": "Chart updated successfully!",
-        "edit_url": chart.get_editor_url(),
-    }
-
-    response: list[Union[TextContent, ImageContent]] = [
+    response: list[TextContent | ImageContent] = [
         TextContent(type="text", text=json.dumps(result, indent=2))
     ]
 
-    # Auto-export a PNG preview so the updated chart is visible inline
-    try:
-        png_bytes = chart.export_png(zoom=2)
-        base64_data = base64.b64encode(png_bytes).decode("utf-8")
-        response.append(
-            ImageContent(
-                type="image",
-                data=base64_data,
-                mimeType="image/png",
-            )
-        )
-    except Exception as e:
-        logger.warning(f"Failed to auto-export PNG preview: {e}")
+    preview = try_export_preview(chart)
+    if preview:
+        response.append(preview)
 
     return response
 ```
 
-### Step 3: Update `datawrapper_mcp/server.py`
+### Step 3: Update `datawrapper_mcp/handlers/update.py`
+
+Same pattern as Step 2 — import the helper, change the return type, and append the preview.
+
+```python
+    response: list[TextContent | ImageContent] = [
+        TextContent(type="text", text=json.dumps(result, indent=2))
+    ]
+
+    preview = try_export_preview(chart)
+    if preview:
+        response.append(preview)
+
+    return response
+```
+
+### Step 4: Update `datawrapper_mcp/server.py`
 
 The tool wrappers for `create_chart` and `update_chart` previously returned `-> str` and extracted only the first text element from the handler response:
 
@@ -211,7 +106,7 @@ return result[0].text  # discards any ImageContent
 
 This must change so the wrappers pass through the full handler response, including both `TextContent` and `ImageContent`.
 
-#### 3a. Change the `create_chart` wrapper
+#### 4a. Change the `create_chart` wrapper
 
 Change the return type from `-> str` to `-> Sequence[TextContent | ImageContent]`.
 
@@ -260,7 +155,7 @@ async def create_chart(
         return [TextContent(type="text", text=f"Error creating chart of type '{chart_type}': {str(e)}")]
 ```
 
-#### 3b. Change the `update_chart` wrapper
+#### 4b. Change the `update_chart` wrapper
 
 Same pattern — change the return type and pass through the full response.
 
@@ -298,6 +193,6 @@ async def update_chart(
 - The `delete_chart`, `get_chart`, `get_chart_schema`, and `list_chart_types` tools are unchanged.
 - The chart ID, edit URL, and all other text metadata are still returned in the response.
 
-## Open question
+## Known limitation
 
-The MCP image content may still render inside a collapsible dropdown in the Claude chat UI rather than directly inline. This is a client-side rendering decision in claude.ai, not something the MCP server controls. If the dropdown behavior persists after this change, it would need to be addressed on the client side separately.
+The MCP image content may render inside a collapsible dropdown in the Claude chat UI rather than directly inline. This is a client-side rendering decision in claude.ai, not something the MCP server controls. If the dropdown behavior persists after this change, it would need to be addressed on the client side separately. Regardless, having the preview available in the response is still an improvement over requiring the user to leave the chat.

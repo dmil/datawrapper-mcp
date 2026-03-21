@@ -118,7 +118,7 @@ async def create_chart(
     data: str | list | dict,
     chart_type: str,
     chart_config: dict,
-) -> str:
+) -> Sequence[TextContent | ImageContent]:
     """⚠️ THIS IS THE DATAWRAPPER INTEGRATION ⚠️
     Use this MCP tool for ALL Datawrapper chart creation.
 
@@ -212,10 +212,14 @@ async def create_chart(
                 "chart_config": chart_config,
             },
         )
-        result = await create_chart_handler(arguments)
-        return result[0].text
+        return await create_chart_handler(arguments)
     except Exception as e:
-        return f"Error creating chart of type '{chart_type}': {str(e)}"
+        return [
+            TextContent(
+                type="text",
+                text=f"Error creating chart of type '{chart_type}': {str(e)}",
+            )
+        ]
 
 
 @mcp.tool()
@@ -288,7 +292,7 @@ async def update_chart(
     chart_id: str,
     data: str | list | dict | None = None,
     chart_config: dict | None = None,
-) -> str:
+) -> Sequence[TextContent | ImageContent]:
     """⚠️ DATAWRAPPER MCP TOOL ⚠️
     This is part of the Datawrapper MCP server integration.
 
@@ -340,10 +344,13 @@ async def update_chart(
         arguments["chart_config"] = chart_config
 
     try:
-        result = await update_chart_handler(cast(UpdateChartArgs, arguments))
-        return result[0].text
+        return await update_chart_handler(cast(UpdateChartArgs, arguments))
     except Exception as e:
-        return f"Error updating chart with ID '{chart_id}': {str(e)}"
+        return [
+            TextContent(
+                type="text", text=f"Error updating chart with ID '{chart_id}': {str(e)}"
+            )
+        ]
 
 
 @mcp.tool()

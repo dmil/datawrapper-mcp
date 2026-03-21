@@ -2,14 +2,15 @@
 
 import json
 
-from mcp.types import TextContent
 from datawrapper import get_chart
+from mcp.types import ImageContent, TextContent
 
 from ..types import UpdateChartArgs
 from ..utils import json_to_dataframe
+from .preview import try_export_preview
 
 
-async def update_chart(arguments: UpdateChartArgs) -> list[TextContent]:
+async def update_chart(arguments: UpdateChartArgs) -> list[TextContent | ImageContent]:
     """Update an existing chart's data or configuration."""
     chart_id = arguments["chart_id"]
 
@@ -56,4 +57,12 @@ async def update_chart(arguments: UpdateChartArgs) -> list[TextContent]:
         "edit_url": chart.get_editor_url(),
     }
 
-    return [TextContent(type="text", text=json.dumps(result, indent=2))]
+    response: list[TextContent | ImageContent] = [
+        TextContent(type="text", text=json.dumps(result, indent=2))
+    ]
+
+    preview = try_export_preview(chart)
+    if preview:
+        response.append(preview)
+
+    return response
