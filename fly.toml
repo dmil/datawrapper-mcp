@@ -1,0 +1,27 @@
+# fly.toml app configuration file generated for datawrapper-mcp on 2026-03-22T07:40:58-04:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'datawrapper-mcp'
+primary_region = 'ewr'
+
+[build]
+
+[http_service]
+internal_port = 8501
+force_https = true
+auto_stop_machines = "stop"
+auto_start_machines = true
+min_machines_running = 1    # keep one warm so demos aren't slow
+
+[checks.health]
+port = 8501
+type = "http"
+path = "/healthz"
+interval = "10s"
+timeout = "2s"
+
+[[vm]]
+size = "shared-cpu-1x"
+memory = "512mb"
