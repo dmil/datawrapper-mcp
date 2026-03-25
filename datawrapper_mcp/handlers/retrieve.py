@@ -12,9 +12,10 @@ from ..types import GetChartArgs
 async def get_chart_info(arguments: GetChartArgs) -> list[TextContent]:
     """Get information about an existing chart including complete configuration."""
     chart_id = arguments["chart_id"]
+    token = arguments.get("access_token")
 
     # Get chart using factory function
-    chart = get_chart(chart_id)
+    chart = get_chart(chart_id, access_token=token)
 
     # Get the complete config
     config = chart.model_dump()

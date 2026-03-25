@@ -15,6 +15,7 @@ class CreateChartArgs(TypedDict):
     data: str | list[dict] | dict[str, list]
     chart_type: str
     chart_config: dict[str, Any]
+    access_token: NotRequired[str]
 
 
 class UpdateChartArgs(TypedDict):
@@ -23,24 +24,28 @@ class UpdateChartArgs(TypedDict):
     chart_id: str
     data: NotRequired[str | list[dict] | dict[str, list]]
     chart_config: NotRequired[dict[str, Any]]
+    access_token: NotRequired[str]
 
 
 class PublishChartArgs(TypedDict):
     """Arguments for publish_chart handler."""
 
     chart_id: str
+    access_token: NotRequired[str]
 
 
 class GetChartArgs(TypedDict):
     """Arguments for get_chart handler."""
 
     chart_id: str
+    access_token: NotRequired[str]
 
 
 class DeleteChartArgs(TypedDict):
     """Arguments for delete_chart handler."""
 
     chart_id: str
+    access_token: NotRequired[str]
 
 
 class GetChartSchemaArgs(TypedDict):
@@ -60,3 +65,4 @@ class ExportChartPngArgs(TypedDict):
     transparent: NotRequired[bool]
     border_width: NotRequired[int]
     border_color: NotRequired[str]
+    access_token: NotRequired[str]

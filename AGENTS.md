@@ -83,6 +83,21 @@ datawrapper_mcp/
 
 **Important**: `publish_chart` and `export_chart_png` should ONLY be used when explicitly requested by the user.
 
+### Optional: Using your own Datawrapper token
+
+All tools accept an optional `access_token` parameter. When provided, the tool
+uses that token to authenticate with the Datawrapper API, meaning all charts are
+created and owned by the token holder's account.
+
+When omitted, the server falls back to its `DATAWRAPPER_ACCESS_TOKEN` environment
+variable (the server operator's account).
+
+**Recommended for hosted deployments**: pass your own token so you can view and
+edit charts directly in Datawrapper after creation.
+
+Note: `access_token` is transmitted as a plain MCP tool argument. Over stdio this
+stays local; over SSE/HTTP the transport should use TLS.
+
 ## Supported Chart Types
 
 - `bar`: BarChart
@@ -155,9 +170,10 @@ dw.get_chart()
 
 ### API Token Handling
 
-- The datawrapper library auto-retrieves `DATAWRAPPER_ACCESS_TOKEN` from environment
-- Do NOT manually call `get_api_token()` or pass `access_token` parameters
-- Let the library handle token retrieval automatically
+- All tools accept an optional `access_token` parameter for per-request authentication
+- When `access_token` is provided, it is passed directly to the library's API methods
+- When omitted, the library falls back to the `DATAWRAPPER_ACCESS_TOKEN` environment variable
+- Never log or include tokens in error messages
 
 ### Type Annotations
 

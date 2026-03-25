@@ -42,7 +42,7 @@ mcp = FastMCP(
     "datawrapper-mcp",
     middleware=[
         TimingMiddleware(),
-        RateLimitingMiddleware(max_calls=60, period=60),
+        RateLimitingMiddleware(max_calls=200, period=60),
         ErrorHandlingMiddleware(),
     ],
 )
@@ -155,6 +155,7 @@ async def create_chart(
     data: str | list | dict,
     chart_type: str,
     chart_config: dict | str,
+    access_token: str | None = None,
 ) -> ToolResult:
     """⚠️ THIS IS THE DATAWRAPPER INTEGRATION ⚠️
     Use this MCP tool for ALL Datawrapper chart creation.
@@ -236,6 +237,9 @@ async def create_chart(
         chart_type: Type of chart to create. Use list_chart_types to see all available types.
             Common types: bar, line, area, arrow, column, multiple_column, scatter, stacked_bar
         chart_config: Complete chart configuration as a Pydantic model dict
+        access_token: Optional Datawrapper API token. When provided, charts are
+                      created in the caller's account (recommended). When omitted,
+                      falls back to the server's DATAWRAPPER_ACCESS_TOKEN env var.
 
     Returns:
         Chart ID, editor URL, and an inline PNG preview image (if export succeeds)
@@ -250,11 +254,14 @@ async def create_chart(
         except (json.JSONDecodeError, TypeError):
             pass  # It's a file path or CSV string, not JSON
 
-    arguments: CreateChartArgs = {
+    args: dict[str, Any] = {
         "data": data,
         "chart_type": chart_type,
         "chart_config": parsed_config,
     }
+    if access_token:
+        args["access_token"] = access_token
+    arguments = cast(CreateChartArgs, args)
     chart_data, images = await create_chart_handler(arguments)
 
     chart_id = chart_data["chart_id"]
@@ -301,7 +308,7 @@ async def create_chart(
         openWorldHint=True,
     ),
 )
-async def publish_chart(chart_id: str) -> ToolResult:
+async def publish_chart(chart_id: str, access_token: str | None = None) -> ToolResult:
     """⚠️ DATAWRAPPER MCP TOOL ⚠️
     This is part of the Datawrapper MCP server integration.
 
@@ -313,11 +320,20 @@ async def publish_chart(chart_id: str) -> ToolResult:
 
     Args:
         chart_id: ID of the chart to publish
+        access_token: Optional Datawrapper API token. When provided, uses the
+                      caller's account. When omitted, falls back to the server's
+                      DATAWRAPPER_ACCESS_TOKEN env var.
 
     Returns:
         Public URL plus an inline preview when available
     """
-    arguments = cast(PublishChartArgs, {"chart_id": chart_id})
+    arguments = cast(
+        PublishChartArgs,
+        {
+            "chart_id": chart_id,
+            **({"access_token": access_token} if access_token else {}),
+        },
+    )
     chart_data, images = await publish_chart_handler(arguments)
 
     public_url = chart_data.get("public_url", "")
@@ -371,7 +387,7 @@ async def publish_chart(chart_id: str) -> ToolResult:
         openWorldHint=True,
     )
 )
-async def get_chart(chart_id: str) -> str:
+async def get_chart(chart_id: str, access_token: str | None = None) -> str:
     """⚠️ DATAWRAPPER MCP TOOL ⚠️
     This is part of the Datawrapper MCP server integration.
 
@@ -397,11 +413,20 @@ async def get_chart(chart_id: str) -> str:
 
     Args:
         chart_id: ID of the chart to retrieve
+        access_token: Optional Datawrapper API token. When provided, uses the
+                      caller's account. When omitted, falls back to the server's
+                      DATAWRAPPER_ACCESS_TOKEN env var.
 
     Returns:
         Chart information including complete configuration and URLs
     """
-    arguments = cast(GetChartArgs, {"chart_id": chart_id})
+    arguments = cast(
+        GetChartArgs,
+        {
+            "chart_id": chart_id,
+            **({"access_token": access_token} if access_token else {}),
+        },
+    )
     result = await get_chart_info_handler(arguments)
     return result[0].text
 
@@ -419,6 +444,7 @@ async def update_chart(
     chart_id: str,
     data: str | list | dict | None = None,
     chart_config: dict | str | None = None,
+    access_token: str | None = None,
 ) -> ToolResult:
     """⚠️ DATAWRAPPER MCP TOOL ⚠️
     This is part of the Datawrapper MCP server integration.
@@ -460,6 +486,9 @@ async def update_chart(
         chart_id: ID of the chart to update
         data: New chart data (optional). Same formats as create_chart.
         chart_config: Updated chart configuration using high-level Pydantic fields (optional)
+        access_token: Optional Datawrapper API token. When provided, uses the
+                      caller's account. When omitted, falls back to the server's
+                      DATAWRAPPER_ACCESS_TOKEN env var.
 
     Returns:
         Confirmation message, editor URL, and an inline PNG preview image (if export succeeds)
@@ -479,6 +508,8 @@ async def update_chart(
         arguments["data"] = data
     if parsed_config is not None:
         arguments["chart_config"] = parsed_config
+    if access_token:
+        arguments["access_token"] = access_token
 
     chart_data, images = await update_chart_handler(cast(UpdateChartArgs, arguments))
 
@@ -524,7 +555,7 @@ async def update_chart(
         openWorldHint=True,
     )
 )
-async def delete_chart(chart_id: str) -> str:
+async def delete_chart(chart_id: str, access_token: str | None = None) -> str:
     """⚠️ DATAWRAPPER MCP TOOL ⚠️
     This is part of the Datawrapper MCP server integration.
 
@@ -534,11 +565,22 @@ async def delete_chart(chart_id: str) -> str:
 
     Args:
         chart_id: ID of the chart to delete
+        access_token: Optional Datawrapper API token. When provided, uses the
+                      caller's account. When omitted, falls back to the server's
+                      DATAWRAPPER_ACCESS_TOKEN env var.
 
     Returns:
         Confirmation message
     """
-    result = await delete_chart_handler(cast(DeleteChartArgs, {"chart_id": chart_id}))
+    result = await delete_chart_handler(
+        cast(
+            DeleteChartArgs,
+            {
+                "chart_id": chart_id,
+                **({"access_token": access_token} if access_token else {}),
+            },
+        )
+    )
     return result[0].text
 
 
@@ -559,6 +601,7 @@ async def export_chart_png(
     transparent: bool = False,
     border_width: int = 0,
     border_color: str | None = None,
+    access_token: str | None = None,
 ) -> Sequence[TextContent | ImageContent]:
     """⚠️ DATAWRAPPER MCP TOOL ⚠️
     This is part of the Datawrapper MCP server integration.
@@ -580,6 +623,9 @@ async def export_chart_png(
         transparent: If true, exports with transparent background
         border_width: Margin around visualization in pixels
         border_color: Color of the border, e.g., '#FFFFFF' (optional)
+        access_token: Optional Datawrapper API token. When provided, uses the
+                      caller's account. When omitted, falls back to the server's
+                      DATAWRAPPER_ACCESS_TOKEN env var.
 
     Returns:
         PNG image content
@@ -597,6 +643,8 @@ async def export_chart_png(
         args["height"] = height
     if border_color is not None:
         args["border_color"] = border_color
+    if access_token:
+        args["access_token"] = access_token
 
     return await export_chart_png_handler(cast(ExportChartPngArgs, args))
 

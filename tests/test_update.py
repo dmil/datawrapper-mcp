@@ -46,7 +46,7 @@ async def test_update_with_high_level_fields(mock_api_token, mock_get_chart):
         metadata, _images = await update_chart(arguments)
 
         # Verify update was called without access_token (library auto-retrieves from env)
-        mock_chart.update.assert_called_once_with()
+        mock_chart.update.assert_called_once_with(access_token=None)
 
         # Verify result contains chart metadata
         assert "chart_id" in metadata
@@ -97,7 +97,7 @@ async def test_update_merges_with_existing_config(
         metadata, _images = await update_chart(arguments)
 
         # Verify update was called without access_token (library auto-retrieves from env)
-        mock_chart.update.assert_called_once_with()
+        mock_chart.update.assert_called_once_with(access_token=None)
 
         # Verify result indicates success
         assert "chart_id" in metadata
@@ -124,7 +124,7 @@ async def test_update_validates_through_pydantic(mock_api_token, mock_get_chart)
     assert mock_chart.intro == "Test intro"
 
     # Verify update was called without access_token (library auto-retrieves from env)
-    mock_chart.update.assert_called_once_with()
+    mock_chart.update.assert_called_once_with(access_token=None)
 
     # Verify result indicates success
     assert "chart_id" in metadata
@@ -229,7 +229,7 @@ async def test_update_uses_direct_attribute_assignment(mock_api_token, mock_get_
     assert mock_chart.title == "New Title"
 
     # Verify update was called without access_token (library auto-retrieves from env)
-    mock_chart.update.assert_called_once_with()
+    mock_chart.update.assert_called_once_with(access_token=None)
 
     # Verify result indicates success
     assert "chart_id" in metadata

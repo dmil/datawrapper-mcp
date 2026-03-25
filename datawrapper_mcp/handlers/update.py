@@ -19,9 +19,10 @@ async def update_chart(
         A tuple of (metadata_dict, preview_images).
     """
     chart_id = arguments["chart_id"]
+    token = arguments.get("access_token")
 
     # Get chart using factory function - returns correct Pydantic class instance
-    chart = get_chart(chart_id)
+    chart = get_chart(chart_id, access_token=token)
 
     # Update data if provided
     if "data" in arguments:
@@ -55,7 +56,7 @@ async def update_chart(
             )
 
     # Update using Pydantic instance method
-    chart.update()
+    chart.update(access_token=token)
 
     metadata: dict[str, Any] = {
         "chart_id": chart.chart_id,
@@ -64,7 +65,7 @@ async def update_chart(
     }
 
     images: list[ImageContent] = []
-    preview = try_export_preview(chart)
+    preview = try_export_preview(chart, access_token=token)
     if preview:
         images.append(preview)
 

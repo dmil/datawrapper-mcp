@@ -44,7 +44,7 @@ async def test_update_with_alias_field_names(mock_api_token):
         assert mock_chart.title == "Test Chart"
 
         # Verify update was called without access_token (library auto-retrieves from env)
-        mock_chart.update.assert_called_once_with()
+        mock_chart.update.assert_called_once_with(access_token=None)
 
         # Verify success
         assert "chart_id" in metadata
@@ -89,7 +89,7 @@ async def test_update_with_python_field_names(mock_api_token):
         assert mock_chart.title == "Test Chart"
 
         # Verify update was called without access_token (library auto-retrieves from env)
-        mock_chart.update.assert_called_once_with()
+        mock_chart.update.assert_called_once_with(access_token=None)
 
         # Verify success
         assert "chart_id" in metadata
@@ -135,7 +135,7 @@ async def test_update_with_mixed_alias_and_python_names(mock_api_token):
         assert mock_chart.title == "Test Chart"
 
         # Verify update was called without access_token (library auto-retrieves from env)
-        mock_chart.update.assert_called_once_with()
+        mock_chart.update.assert_called_once_with(access_token=None)
 
         # Verify success
         assert "chart_id" in metadata

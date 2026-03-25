@@ -14,10 +14,11 @@ async def publish_chart(
 ) -> tuple[dict[str, Any], list[ImageContent]]:
     """Publish a chart and return metadata plus a PNG preview when available."""
     chart_id = arguments["chart_id"]
+    token = arguments.get("access_token")
 
     # Get chart and publish using Pydantic instance method
-    chart = get_chart(chart_id)
-    chart.publish()
+    chart = get_chart(chart_id, access_token=token)
+    chart.publish(access_token=token)
 
     metadata: dict[str, Any] = {
         "chart_id": chart.chart_id,
@@ -28,7 +29,7 @@ async def publish_chart(
     }
 
     images: list[ImageContent] = []
-    preview = try_export_preview(chart)
+    preview = try_export_preview(chart, access_token=token)
     if preview:
         images.append(preview)
 
