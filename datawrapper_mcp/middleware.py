@@ -9,11 +9,35 @@ import logging
 import time
 
 from fastmcp.exceptions import ToolError
+from fastmcp.server.dependencies import get_http_headers
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 from fastmcp.tools import ToolResult
 from mcp.types import TextContent
 
 logger = logging.getLogger("datawrapper_mcp")
+
+
+class BearerTokenMiddleware(Middleware):
+    """Inject Authorization bearer token as access_token into tool arguments.
+
+    Reads the HTTP Authorization header and, if present, injects the bearer
+    token as ``access_token`` into the tool arguments dict. An explicit
+    ``access_token`` tool argument always takes precedence (via setdefault).
+    On stdio transports, get_http_headers() returns {} so this is a no-op.
+    """
+
+    async def on_call_tool(
+        self,
+        context: MiddlewareContext,
+        call_next: CallNext,
+    ) -> ToolResult:
+        headers = get_http_headers(include={"authorization"})
+        auth = headers.get("authorization", "")
+        if auth.startswith("Bearer ") and context.message:
+            token = auth.removeprefix("Bearer ").strip()
+            if token and context.message.arguments is not None:
+                context.message.arguments.setdefault("access_token", token)
+        return await call_next(context)
 
 
 class ErrorHandlingMiddleware(Middleware):

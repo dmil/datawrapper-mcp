@@ -19,6 +19,7 @@ async def create_chart(
         A tuple of (metadata_dict, preview_images).
     """
     chart_type = arguments["chart_type"]
+    token = arguments.get("access_token") or None  # normalize "" → None
 
     # Convert data to DataFrame
     df = json_to_dataframe(arguments["data"])
@@ -40,7 +41,7 @@ async def create_chart(
     chart.data = df
 
     # Create chart using Pydantic instance method
-    chart.create()
+    chart.create(access_token=token)
 
     metadata: dict[str, Any] = {
         "chart_id": chart.chart_id,
@@ -50,7 +51,7 @@ async def create_chart(
     }
 
     images: list[ImageContent] = []
-    preview = try_export_preview(chart)
+    preview = try_export_preview(chart, access_token=token)
     if preview:
         images.append(preview)
 

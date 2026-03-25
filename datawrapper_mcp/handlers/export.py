@@ -12,6 +12,7 @@ from ..types import ExportChartPngArgs
 async def export_chart_png(arguments: ExportChartPngArgs) -> list[ImageContent]:
     """Export a chart as PNG and return it as inline image."""
     chart_id = arguments["chart_id"]
+    token = arguments.get("access_token")
 
     # Build export parameters
     export_params: dict[str, Any] = {}
@@ -33,10 +34,13 @@ async def export_chart_png(arguments: ExportChartPngArgs) -> list[ImageContent]:
         export_params["border_color"] = arguments["border_color"]
 
     # Get chart using factory function
-    chart = get_chart(chart_id)
+    chart = get_chart(chart_id, access_token=token)
 
     # Export PNG using Pydantic instance method
-    png_bytes = chart.export_png(**cast(dict[str, Any], export_params))
+    png_bytes = chart.export_png(
+        **cast(dict[str, Any], export_params),
+        access_token=token,
+    )
 
     # Encode to base64
     base64_data = base64.b64encode(png_bytes).decode("utf-8")

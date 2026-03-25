@@ -33,11 +33,11 @@ class TestExportChartPng:
             result = await export_chart_png(args)
 
             # Verify get_chart was called correctly
-            mock_get_chart.assert_called_once_with("test123")
+            mock_get_chart.assert_called_once_with("test123", access_token=None)
 
             # Verify export_png was called with border parameters
             mock_chart.export_png.assert_called_once_with(
-                border_width=10, border_color="#FF0000"
+                border_width=10, border_color="#FF0000", access_token=None
             )
 
             # Verify result
@@ -80,6 +80,7 @@ class TestExportChartPng:
                 transparent=True,
                 border_width=5,
                 border_color="#00FF00",
+                access_token=None,
             )
 
             # Verify result
@@ -107,7 +108,9 @@ class TestExportChartPng:
             result = await export_chart_png(args)
 
             # Verify export_png was called without border parameters
-            mock_chart.export_png.assert_called_once_with(width=800, height=600)
+            mock_chart.export_png.assert_called_once_with(
+                width=800, height=600, access_token=None
+            )
 
             # Verify result
             assert len(result) == 1
@@ -129,7 +132,7 @@ class TestExportChartPng:
             result = await export_chart_png(args)
 
             # Verify export_png was called with no parameters
-            mock_chart.export_png.assert_called_once_with()
+            mock_chart.export_png.assert_called_once_with(access_token=None)
 
             # Verify result
             assert len(result) == 1
@@ -155,7 +158,9 @@ class TestExportChartPng:
             result = await export_chart_png(args)
 
             # Verify export_png was called with only border_width
-            mock_chart.export_png.assert_called_once_with(border_width=15)
+            mock_chart.export_png.assert_called_once_with(
+                border_width=15, access_token=None
+            )
 
             # Verify result
             assert len(result) == 1
@@ -180,7 +185,9 @@ class TestExportChartPng:
             result = await export_chart_png(args)
 
             # Verify export_png was called with only border_color
-            mock_chart.export_png.assert_called_once_with(border_color="#0000FF")
+            mock_chart.export_png.assert_called_once_with(
+                border_color="#0000FF", access_token=None
+            )
 
             # Verify result
             assert len(result) == 1

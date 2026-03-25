@@ -4,11 +4,12 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from typing import cast
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from datawrapper_mcp.middleware import (
+    BearerTokenMiddleware,
     ErrorHandlingMiddleware,
     RateLimitingMiddleware,
     TimingMiddleware,
@@ -23,6 +24,7 @@ class _FakeMessage:
     """Minimal stand-in for a CallToolRequestParams message."""
 
     name: str = "test_tool"
+    arguments: dict | None = None
 
 
 @dataclass
@@ -30,6 +32,17 @@ class _FakeContext:
     """Minimal stand-in for MiddlewareContext with the ``.message.name`` path."""
 
     message: _FakeMessage
+
+
+def _make_context_with_args(
+    tool_name: str = "test_tool",
+    arguments: dict | None = None,
+) -> MiddlewareContext:
+    """Build a MiddlewareContext that also carries ``.message.arguments``."""
+    return cast(
+        MiddlewareContext,
+        _FakeContext(message=_FakeMessage(name=tool_name, arguments=arguments)),
+    )
 
 
 def _make_context(tool_name: str = "test_tool") -> MiddlewareContext:
@@ -183,3 +196,89 @@ class TestTimingMiddleware:
         # that the middleware does not swallow the error on its own.
         assert "failing_tool" in caplog.text
         assert "completed in" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# BearerTokenMiddleware
+# ---------------------------------------------------------------------------
+
+
+class TestBearerTokenMiddleware:
+    """BearerTokenMiddleware should inject bearer tokens into tool arguments."""
+
+    @pytest.mark.asyncio
+    async def test_injects_token_from_header(self):
+        """Bearer token from header is injected as access_token."""
+        mw = BearerTokenMiddleware()
+        call_next = AsyncMock(return_value=_ok_result())
+        ctx = _make_context_with_args(arguments={"chart_id": "abc"})
+
+        with patch(
+            "datawrapper_mcp.middleware.get_http_headers",
+            return_value={"authorization": "Bearer dw_my_token"},
+        ):
+            await mw.on_call_tool(ctx, call_next)
+
+        assert ctx.message.arguments["access_token"] == "dw_my_token"
+
+    @pytest.mark.asyncio
+    async def test_explicit_arg_takes_precedence(self):
+        """Explicit access_token tool argument is not overwritten by header."""
+        mw = BearerTokenMiddleware()
+        call_next = AsyncMock(return_value=_ok_result())
+        ctx = _make_context_with_args(
+            arguments={"chart_id": "abc", "access_token": "explicit_token"},
+        )
+
+        with patch(
+            "datawrapper_mcp.middleware.get_http_headers",
+            return_value={"authorization": "Bearer header_token"},
+        ):
+            await mw.on_call_tool(ctx, call_next)
+
+        assert ctx.message.arguments["access_token"] == "explicit_token"
+
+    @pytest.mark.asyncio
+    async def test_noop_when_no_header(self):
+        """No injection when no Authorization header (e.g. stdio transport)."""
+        mw = BearerTokenMiddleware()
+        call_next = AsyncMock(return_value=_ok_result())
+        ctx = _make_context_with_args(arguments={"chart_id": "abc"})
+
+        with patch(
+            "datawrapper_mcp.middleware.get_http_headers",
+            return_value={},
+        ):
+            await mw.on_call_tool(ctx, call_next)
+
+        assert "access_token" not in ctx.message.arguments
+
+    @pytest.mark.asyncio
+    async def test_noop_for_non_bearer_header(self):
+        """No injection for non-Bearer auth schemes."""
+        mw = BearerTokenMiddleware()
+        call_next = AsyncMock(return_value=_ok_result())
+        ctx = _make_context_with_args(arguments={"chart_id": "abc"})
+
+        with patch(
+            "datawrapper_mcp.middleware.get_http_headers",
+            return_value={"authorization": "Basic dXNlcjpwYXNz"},
+        ):
+            await mw.on_call_tool(ctx, call_next)
+
+        assert "access_token" not in ctx.message.arguments
+
+    @pytest.mark.asyncio
+    async def test_noop_when_arguments_is_none(self):
+        """No crash when message.arguments is None."""
+        mw = BearerTokenMiddleware()
+        call_next = AsyncMock(return_value=_ok_result())
+        ctx = _make_context_with_args(arguments=None)
+
+        with patch(
+            "datawrapper_mcp.middleware.get_http_headers",
+            return_value={"authorization": "Bearer dw_token"},
+        ):
+            await mw.on_call_tool(ctx, call_next)
+
+        assert ctx.message.arguments is None
