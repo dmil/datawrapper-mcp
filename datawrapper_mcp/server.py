@@ -11,6 +11,7 @@ from prefab_ui.components import Column, Image, Text
 
 from .config import CHART_CLASSES
 from .middleware import (
+    BearerTokenMiddleware,
     ErrorHandlingMiddleware,
     RateLimitingMiddleware,
     TimingMiddleware,
@@ -43,6 +44,7 @@ mcp = FastMCP(
     middleware=[
         TimingMiddleware(),
         RateLimitingMiddleware(max_calls=200, period=60),
+        BearerTokenMiddleware(),
         ErrorHandlingMiddleware(),
     ],
 )

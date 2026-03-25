@@ -302,6 +302,32 @@ edit charts directly in Datawrapper after creation.
 
 ---
 
+## HTTP Authorization header injection
+
+For HTTP deployments (streamable-http on Fly.io), callers can pass their
+Datawrapper token via the standard HTTP `Authorization` header instead of
+including `access_token` in every tool call:
+
+```
+Authorization: Bearer <datawrapper-api-token>
+```
+
+`BearerTokenMiddleware` in `middleware.py` reads the header via FastMCP's
+`get_http_headers(include={"authorization"})` and injects it as `access_token`
+into tool arguments using `setdefault`. This means:
+
+- **Explicit `access_token` tool argument always wins** (via `setdefault`)
+- **Stdio callers are unaffected** (`get_http_headers()` returns `{}`)
+- **No handler changes needed** — handlers already read `arguments.get("access_token")`
+
+### Token precedence (highest to lowest)
+
+1. `access_token` passed as a tool argument
+2. `Authorization: Bearer <token>` HTTP header
+3. `DATAWRAPPER_ACCESS_TOKEN` env var (library fallback)
+
+---
+
 ## What this does NOT change
 
 - **No concurrency risk.** There is no mutation of `os.environ`. Each call to

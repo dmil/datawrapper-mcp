@@ -95,8 +95,17 @@ variable (the server operator's account).
 **Recommended for hosted deployments**: pass your own token so you can view and
 edit charts directly in Datawrapper after creation.
 
-Note: `access_token` is transmitted as a plain MCP tool argument. Over stdio this
-stays local; over SSE/HTTP the transport should use TLS.
+**HTTP deployments**: You can also pass your token via the HTTP `Authorization`
+header instead of including it in every tool call:
+
+```
+Authorization: Bearer <your-datawrapper-token>
+```
+
+The server automatically injects the bearer token into tool arguments. An explicit
+`access_token` tool argument always takes precedence over the header.
+
+Note: over SSE/HTTP the transport should use TLS to protect tokens in transit.
 
 ## Supported Chart Types
 
