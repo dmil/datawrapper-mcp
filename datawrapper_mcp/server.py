@@ -54,7 +54,7 @@ mcp = FastMCP(
                     "delete_chart",
                     "export_chart_png",
                 }
-            )
+            ),
         ),
         ErrorHandlingMiddleware(),
     ],
