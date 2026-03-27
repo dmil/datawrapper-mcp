@@ -21,7 +21,8 @@ class BearerTokenMiddleware(Middleware):
     """Inject Authorization bearer token as access_token into tool arguments.
 
     Reads the HTTP Authorization header and, if present, injects the bearer
-    token as ``access_token`` into the tool arguments dict. An explicit
+    token as ``access_token`` into the tool arguments dict — but only for tools
+    whose schema declares ``access_token`` as a parameter. An explicit
     ``access_token`` tool argument always takes precedence (via setdefault).
     On stdio transports, get_http_headers() returns {} so this is a no-op.
     """
@@ -36,7 +37,13 @@ class BearerTokenMiddleware(Middleware):
         if auth.startswith("Bearer ") and context.message:
             token = auth.removeprefix("Bearer ").strip()
             if token and context.message.arguments is not None:
-                context.message.arguments.setdefault("access_token", token)
+                fmc = context.fastmcp_context
+                if fmc is not None:
+                    tool = await fmc.fastmcp.get_tool(context.message.name)
+                    if tool is not None and "access_token" in tool.parameters.get(
+                        "properties", {}
+                    ):
+                        context.message.arguments.setdefault("access_token", token)
         return await call_next(context)
 
 

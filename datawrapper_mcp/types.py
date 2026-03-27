@@ -52,7 +52,6 @@ class GetChartSchemaArgs(TypedDict):
     """Arguments for get_chart_schema handler."""
 
     chart_type: str
-    access_token: NotRequired[str]
 
 
 class ExportChartPngArgs(TypedDict):

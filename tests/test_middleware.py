@@ -2,9 +2,9 @@
 
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import cast
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -32,16 +32,35 @@ class _FakeContext:
     """Minimal stand-in for MiddlewareContext with the ``.message.name`` path."""
 
     message: _FakeMessage
+    fastmcp_context: object = None
 
 
 def _make_context_with_args(
     tool_name: str = "test_tool",
     arguments: dict | None = None,
+    tool_schema_properties: dict | None = None,
 ) -> MiddlewareContext:
-    """Build a MiddlewareContext that also carries ``.message.arguments``."""
+    """Build a MiddlewareContext that also carries ``.message.arguments``.
+
+    If ``tool_schema_properties`` is provided, a fake ``fastmcp_context`` is
+    attached whose ``fastmcp.get_tool()`` returns a tool with those properties
+    in its parameter schema — allowing BearerTokenMiddleware's schema check to
+    work in unit tests.
+    """
+    fastmcp_context = None
+    if tool_schema_properties is not None:
+        fake_tool = MagicMock()
+        fake_tool.parameters = {"properties": tool_schema_properties}
+        fake_fmc = MagicMock()
+        fake_fmc.fastmcp.get_tool = AsyncMock(return_value=fake_tool)
+        fastmcp_context = fake_fmc
+
     return cast(
         MiddlewareContext,
-        _FakeContext(message=_FakeMessage(name=tool_name, arguments=arguments)),
+        _FakeContext(
+            message=_FakeMessage(name=tool_name, arguments=arguments),
+            fastmcp_context=fastmcp_context,
+        ),
     )
 
 
@@ -208,10 +227,13 @@ class TestBearerTokenMiddleware:
 
     @pytest.mark.asyncio
     async def test_injects_token_from_header(self):
-        """Bearer token from header is injected as access_token."""
+        """Bearer token from header is injected as access_token for auth-aware tools."""
         mw = BearerTokenMiddleware()
         call_next = AsyncMock(return_value=_ok_result())
-        ctx = _make_context_with_args(arguments={"chart_id": "abc"})
+        ctx = _make_context_with_args(
+            arguments={"chart_id": "abc"},
+            tool_schema_properties={"chart_id": {}, "access_token": {}},
+        )
 
         with patch(
             "datawrapper_mcp.middleware.get_http_headers",
@@ -228,6 +250,7 @@ class TestBearerTokenMiddleware:
         call_next = AsyncMock(return_value=_ok_result())
         ctx = _make_context_with_args(
             arguments={"chart_id": "abc", "access_token": "explicit_token"},
+            tool_schema_properties={"chart_id": {}, "access_token": {}},
         )
 
         with patch(
@@ -243,7 +266,10 @@ class TestBearerTokenMiddleware:
         """No injection when no Authorization header (e.g. stdio transport)."""
         mw = BearerTokenMiddleware()
         call_next = AsyncMock(return_value=_ok_result())
-        ctx = _make_context_with_args(arguments={"chart_id": "abc"})
+        ctx = _make_context_with_args(
+            arguments={"chart_id": "abc"},
+            tool_schema_properties={"chart_id": {}, "access_token": {}},
+        )
 
         with patch(
             "datawrapper_mcp.middleware.get_http_headers",
@@ -258,7 +284,10 @@ class TestBearerTokenMiddleware:
         """No injection for non-Bearer auth schemes."""
         mw = BearerTokenMiddleware()
         call_next = AsyncMock(return_value=_ok_result())
-        ctx = _make_context_with_args(arguments={"chart_id": "abc"})
+        ctx = _make_context_with_args(
+            arguments={"chart_id": "abc"},
+            tool_schema_properties={"chart_id": {}, "access_token": {}},
+        )
 
         with patch(
             "datawrapper_mcp.middleware.get_http_headers",
@@ -284,16 +313,21 @@ class TestBearerTokenMiddleware:
         assert ctx.message.arguments is None
 
     @pytest.mark.asyncio
-    async def test_injects_token_into_empty_args(self):
-        """Token is injected even when the tool args dict starts empty.
+    async def test_no_injection_for_tools_without_access_token_param(self):
+        """Token is NOT injected into tools whose schema lacks access_token.
 
-        Covers tools like list_chart_types and get_chart_schema that accept
-        access_token as an optional param so that BearerTokenMiddleware can
-        forward the authenticated user's token without a validation error.
+        list_chart_types and get_chart_schema don't call the Datawrapper API
+        and have no access_token parameter. Injecting the header token into
+        them caused a pydantic ValidationError ("Unexpected keyword argument").
         """
         mw = BearerTokenMiddleware()
         call_next = AsyncMock(return_value=_ok_result())
-        ctx = _make_context_with_args(tool_name="list_chart_types", arguments={})
+        # Schema with no access_token property (like list_chart_types)
+        ctx = _make_context_with_args(
+            tool_name="list_chart_types",
+            arguments={},
+            tool_schema_properties={},
+        )
 
         with patch(
             "datawrapper_mcp.middleware.get_http_headers",
@@ -301,4 +335,4 @@ class TestBearerTokenMiddleware:
         ):
             await mw.on_call_tool(ctx, call_next)
 
-        assert ctx.message.arguments["access_token"] == "dw_my_token"
+        assert "access_token" not in ctx.message.arguments
