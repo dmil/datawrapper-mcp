@@ -50,14 +50,18 @@ class BearerTokenMiddleware(Middleware):
         auth = headers.get("authorization", "")
         if auth.startswith("Bearer ") and context.message:
             token = auth.removeprefix("Bearer ").strip()
+            # Fill when access_token is absent *or* empty: some clients (e.g.
+            # Claude Desktop) send the schema default, null, which would
+            # otherwise shadow the header token.
             if (
                 token
                 and context.message.arguments is not None
                 and (
                     self._inject_for is None or context.message.name in self._inject_for
                 )
+                and not context.message.arguments.get("access_token")
             ):
-                context.message.arguments.setdefault("access_token", token)
+                context.message.arguments["access_token"] = token
         return cast("ToolResult", await call_next(context))
 
 

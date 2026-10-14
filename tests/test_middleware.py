@@ -279,6 +279,24 @@ class TestBearerTokenMiddleware:
 
         assert ctx.message.arguments["access_token"] == "explicit_token"
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("empty_value", [None, ""])
+    async def test_empty_arg_is_replaced_by_header(self, empty_value):
+        """A null or empty access_token argument does not shadow the header token."""
+        mw = BearerTokenMiddleware()
+        call_next = AsyncMock(return_value=_ok_result())
+        ctx = _make_context_with_args(
+            arguments={"chart_id": "abc", "access_token": empty_value},
+        )
+
+        with patch(
+            "datawrapper_mcp.middleware.get_http_headers",
+            return_value={"authorization": "Bearer header_token"},
+        ):
+            await mw.on_call_tool(ctx, call_next)
+
+        assert ctx.message.arguments["access_token"] == "header_token"
+
     async def test_noop_when_no_header(self):
         """No injection when no Authorization header (e.g. stdio transport)."""
         mw = BearerTokenMiddleware()
